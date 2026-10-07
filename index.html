@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<!-- ===== PWA 注入 ===== -->
+<meta name="theme-color" content="#E8743B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="识谱小达人">
+<meta name="application-name" content="识谱小达人">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<!-- ===== /PWA 注入 ===== -->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>识谱小达人 · 音符随机训练器</title>
+<style>
+:root{
+  --bg:#f6f3ec; --card:#fffdf8; --ink:#2f2a25; --muted:#8a8078;
+  --line:#d8d0c4; --accent:#e07a3f; --accent2:#3f7d8c;
+  --ok:#4a9d6a; --bad:#d1584f; --shadow:0 2px 14px rgba(80,65,50,.10);
+  --r:16px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;
+  background:var(--bg); color:var(--ink);
+  min-height:100vh; padding:12px 12px 40px;
+  display:flex; justify-content:center;
+}
+.wrap{width:100%; max-width:560px}
+
+/* ---- 顶部 ---- */
+header{display:flex; align-items:center; gap:10px; padding:6px 2px 12px}
+.logo{width:38px;height:38px;flex:none}
+h1{font-size:19px;margin:0;letter-spacing:.5px}
+.sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* ---- 卡片 ---- */
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+
+/* ---- 分数条 ---- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stat{background:#fbf7f0;border-radius:12px;padding:9px 4px}
+.stat b{display:block;font-size:20px;line-height:1.15}
+.stat span{font-size:10px;color:var(--muted)}
+.stat.ok b{color:var(--ok)} .stat.bad b{color:var(--bad)} .stat.acc b{color:var(--accent2)}
+
+/* ---- 设置行 ---- */
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row+.row{margin-top:10px}
+.lbl{font-size:12px;color:var(--muted);min-width:38px}
+.chip{
+  border:1.5px solid var(--line); background:#fff; color:var(--ink);
+  padding:6px 13px;border-radius:20px;font-size:13px;cursor:pointer;
+  font-family:inherit;transition:.15s; white-space:nowrap;
+  display:inline-flex;align-items:center
+}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.chip:active{transform:scale(.94)}
+/* 谱号按钮里的谱号预览图（跟着文字颜色变，选中时反白） */
+.chip svg{margin-right:3px}
+.chip.on svg path,.chip.on svg circle,.chip.on svg ellipse{fill:#fff}
+.chip.on svg path[stroke],.chip.on svg line{stroke:#fff}
+
+/* ---- 谱面 ---- */
+.staffbox{background:#fff;border-radius:12px;padding:6px 0;margin:14px 0 6px;border:1px solid var(--line)}
+svg{display:block;width:100%;height:auto}
+.qtitle{text-align:center;font-size:15px;font-weight:600;margin:2px 0 0}
+.qtitle .hint{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:3px}
+
+/* ---- 选项 ---- */
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.opt{
+  border:2px solid var(--line);background:#fff;border-radius:14px;
+  padding:16px 8px;text-align:center;cursor:pointer;font-family:inherit;
+  font-size:26px;font-weight:700;color:var(--ink);transition:.14s; position:relative
+}
+.opt small{display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:3px}
+.opt:active{transform:scale(.96)}
+.opt.right{border-color:var(--ok);background:#eaf6ee;color:var(--ok)}
+.opt.wrong{border-color:var(--bad);background:#fdeceb;color:var(--bad);animation:shake .32s}
+.opt.lock{pointer-events:none}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+/* ---- 反馈 ---- */
+.fb{margin-top:12px;padding:12px 14px;border-radius:12px;font-size:14px;display:none;line-height:1.65}
+.fb.show{display:block;animation:fade .25s}
+.fb.good{background:#eaf6ee;color:#2f6b45}
+.fb.err{background:#fdeceb;color:#8f3a33}
+.fb b{font-size:19px}
+.fb svg{display:inline-block;width:auto;vertical-align:-3px}
+@keyframes fade{from{opacity:0;transform:translateY(-4px)}to{opacity:1}}
+.kb{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
+kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-family:inherit;font-size:11px}
+
+.nbtn{
+  width:100%;margin-top:12px;padding:14px;border:none;border-radius:14px;
+  background:var(--accent);color:#fff;font-size:16px;font-weight:700;
+  cursor:pointer;font-family:inherit
+}
+.nbtn:active{transform:scale(.98)}
+.ghost{background:#fff;color:var(--muted);border:1.5px solid var(--line);font-weight:600}
+.grow{flex:1}
+.ctl{width:44px;height:44px;flex:none;border-radius:50%;border:none;background:var(--accent2);color:#fff;font-size:18px;cursor:pointer;font-family:inherit}
+.ctl.off{background:#c9c1b6}
+.playwrap{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 4px}
+.replay{font-size:12px;color:var(--accent2);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline}
+
+/* ---- 结算 ---- */
+.result{text-align:center;padding:8px 0}
+.result .big{font-size:44px;font-weight:800;color:var(--accent)}
+.result h3{margin:6px 0 4px;font-size:18px}
+.miss{text-align:left;font-size:13px;color:var(--muted);margin-top:10px;line-height:1.9}
+.miss b{color:var(--ink)}
+.hidden{display:none !important}
+.fold{font-size:12px;color:var(--muted);margin-top:10px;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit}
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:rgba(47,42,37,.94);color:#fff;padding:11px 18px;border-radius:22px;font-size:13px;
+  opacity:0;pointer-events:none;transition:.25s;z-index:99
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="1" y="1" width="38" height="38" rx="11" fill="#e07a3f"/>
+      <g stroke="#fff" stroke-width="1.6" opacity=".9">
+        <path d="M8 13h24M8 19h24M8 25h24"/>
+      </g>
+      <ellipse cx="16" cy="28" rx="5" ry="4" fill="#fff" transform="rotate(-20 16 28)"/>
+      <path d="M21 27V17l6-2" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <h1>识谱小达人</h1>
+      <div class="sub">随机音符 · 升降记号 · 五线谱训练</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="stats">
+      <div class="stat ok"><b id="sOk">0</b><span>答对</span></div>
+      <div class="stat bad"><b id="sBad">0</b><span>答错</span></div>
+      <div class="stat acc"><b id="sAcc">—</b><span>正确率</span></div>
+      <div class="stat"><b id="sStreak">0</b><span>连对</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <span class="lbl">谱号</span>
+      <button class="chip" data-clef="treble"><span class="clefIcon" data-icon="treble"></span>高音</button>
+      <button class="chip" data-clef="bass"><span class="clefIcon" data-icon="bass"></span>低音</button>
+      <button class="chip" data-clef="alto"><span class="clefIcon" data-icon="alto"></span>中音</button>
+    </div>
+    <div class="row">
+      <span class="lbl">难度</span>
+      <button class="chip" data-diff="1">入门</button>
+      <button class="chip" data-diff="2">进阶</button>
+      <button class="chip" data-diff="3">挑战</button>
+    </div>
+    <div class="row">
+      <span class="lbl">题型</span>
+      <button class="chip" data-mode="read">看谱选名</button>
+      <button class="chip" data-mode="listen">听音点谱</button>
+      <button class="chip" data-mode="solfege">选唱名</button>
+    </div>
+    <div class="row">
+      <span class="lbl">选项</span>
+      <button class="chip" id="cAlter">升降记号</button>
+      <button class="chip" id="cDur">四分音符</button>
+      <button class="chip" id="cGuide">辅助线</button>
+      <button class="chip" id="cSnd">音效</button>
+    </div>
+  </div>
+
+  <div class="card" id="quizCard">
+    <div class="qtitle" id="qTitle">看谱，选出正确的音名</div>
+    <div class="staffbox" id="staffBox"></div>
+    <div class="playwrap hidden" id="playWrap">
+      <button class="ctl" id="playBtn">▶</button>
+      <button class="replay" id="replayBtn">再听一次</button>
+    </div>
+    <div class="opts" id="opts"></div>
+    <div class="fb" id="fb"></div>
+    <div class="kb"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> 选择 · <kbd>空格</kbd> 下一题</div>
+    <button class="nbtn" id="nextBtn">下一题</button>
+  </div>
+
+  <div class="card hidden" id="endCard">
+    <div class="result">
+      <div class="big" id="endScore">0</div>
+      <h3 id="endTitle">完成一轮！</h3>
+      <div style="font-size:13px;color:var(--muted)" id="endSub"></div>
+      <div class="miss hidden" id="missBox"></div>
+      <button class="fold hidden" id="foldBtn">查看错题 ▾</button>
+      <div class="row" style="justify-content:center;margin-top:16px">
+        <button class="nbtn grow ghost" id="restartBtn">再来一轮</button>
+        <button class="nbtn grow" id="contBtn">继续练习</button>
+      </div>
+      <div class="row" style="justify-content:center;margin-top:10px">
+        <button class="nbtn grow ghost" id="drillBtn">🎯 重练本轮错题</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 乐理核心（来自 theory.js，已通过 105 项单元测试） ===== */
+/* ============ 乐理核心模块（可被 Node 测试） ============ */
+const THEORY = (() => {
+  const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  const SEMIS = [0, 2, 4, 5, 7, 9, 11];
+  const SOLFEGE_FIXED = ['do', 're', 'mi', 'fa', 'sol', 'la', 'si'];
+
+  // 谱号定义：ref 为参考音的 diatonic，off 为其在半格坐标中的位置
+  const CLEFS = {
+    treble: { name: '高音谱号', ref: 4 * 7 + 4, off: 2, sym: '𝄞' },   // G4 在第二线
+    bass: { name: '低音谱号', ref: 3 * 7 + 3, off: 6, sym: '𝄢' },      // F3 在第四线
+    alto: { name: '中音谱号', ref: 4 * 7 + 0, off: 4, sym: '𝄡' },     // C4 在第三线
+  };
+
+  const dia = (n) => ({ letter: n % 7, octave: Math.floor(n / 7) });
+
+  /** 音对象 -> 五线谱半格位置 p（0=第一线，每+1 上移半格） */
+  function pos(note, clef) {
+    const d = note.octave * 7 + note.letter;
+    return d - CLEFS[clef].ref + CLEFS[clef].off;
+  }
+
+  /** 半格位置 -> 音对象（不含升降） */
+  function noteAt(p, clef) {
+    const d = p + CLEFS[clef].ref - CLEFS[clef].off;
+    return dia(d);
+  }
+
+  /** 加线：返回需要绘制的半格坐标数组 */
+  function ledgerLines(p) {
+    const out = [];
+    if (p < 0) for (let q = -2; q >= p; q -= 2) out.push(q);
+    if (p > 8) for (let q = 10; q <= p; q += 2) out.push(q);
+    return out;
+  }
+
+  /** MIDI 音高（含升降） */
+  function midi(n) {
+    return (n.octave + 1) * 12 + SEMIS[n.letter] + (n.alter || 0);
+  }
+
+  /** 频率 Hz */
+  function freq(n) {
+    return 440 * Math.pow(2, (midi(n) - 69) / 12);
+  }
+
+  /** 音名文本，如 C4 / F♯4 / B♭3 */
+  function name(n) {
+    const a = n.alter || 0;
+    return LETTERS[n.letter] + (a > 0 ? '♯' : a < 0 ? '♭' : '') + n.octave;
+  }
+
+  /** 首调唱名（简谱级数），C大调 */
+  function solfege(n) {
+    const a = n.alter || 0;
+    const s = SOLFEGE_FIXED[n.letter];
+    if (a > 0) return s + '#';
+    if (a < 0) return s + 'b';
+    return s;
+  }
+
+  /** 减号记号后的唱名，供选项使用 */
+  const accidentalText = (a) => (a > 0 ? '♯' : a < 0 ? '♭' : '');
+
+  /** 在给定音域内随机生成一个音（含升降约束） */
+  function randomNote(lowDia, highDia, allowAlter, rng = Math.random) {
+    const d = lowDia + Math.floor(rng() * (highDia - lowDia + 1));
+    const n = dia(d);
+    n.alter = 0;
+    if (allowAlter && rng() < 0.45) {
+      // 避免把 E/F/B 降号或 C#F#B# 等极少见组合塞给孩子
+      const bad = new Set(['Cb', 'E#', 'Fb', 'B#', 'Cb#']);
+      const cand = rng() < 0.5 ? 1 : -1;
+      const key = LETTERS[n.letter] + (cand > 0 ? '♯' : '♭');
+      if (!bad.has(key)) n.alter = cand;
+    }
+    return n;
+  }
+
+  /** 生成干扰项：与正确答案同八度、不同的音高 */
+  function makeDistractors(correct, clef, count, lowDia, highDia, rng = Math.random) {
+    const set = new Set();
+    const key = (n) => `${n.letter}${n.octave}${n.alter || 0}`;
+    set.add(key(correct));
+    const pool = [];
+    // 优先同音名不同升降，其次相邻音高
+    const cD = correct.octave * 7 + correct.letter;
+    for (let d = -3; d <= 3; d++) {
+      if (d === 0) continue;
+      const t = dia(cD + d);
+      if (t.octave < 0 || t.octave > 8) continue;
+      t.alter = 0;
+      pool.push(t);
+    }
+    for (const a of [-1, 1]) {
+      const t = { letter: correct.letter, octave: correct.octave, alter: a };
+      if (Math.abs(a) > 1) continue;
+      pool.push(t);
+    }
+    while (pool.length < count) {
+      const t = randomNote(lowDia, highDia, false, rng);
+      pool.push(t);
+    }
+    shuffle(pool, rng);
+    const out = [];
+    for (const t of pool) {
+      if (out.length >= count) break;
+      if (set.has(key(t))) continue;
+      set.add(key(t));
+      out.push(t);
+    }
+    return out;
+  }
+
+  function shuffle(arr, rng = Math.random) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  /** 某谱号下的"易读音域"（半格坐标范围） */
+  const RANGES = {
+    treble: { easy: [0, 4], mid: [-2, 10], hard: [-8, 14] },
+    bass: { easy: [4, 8], mid: [2, 12], hard: [-2, 16] },
+    alto: { easy: [2, 6], mid: [0, 8], hard: [-4, 12] },
+  };
+
+  return {
+    LETTERS, SEMIS, CLEFS, RANGES, dia, pos, noteAt, ledgerLines,
+    midi, freq, name, solfege, accidentalText, randomNote, makeDistractors, shuffle,
+  };
+})();
+
+
+
+/* ===== 乐谱字形：Bravura（SMuFL 标准音乐字体，Steinberg / SIL OFL-1.1） =====
+   全部为矢量轮廓，不依赖任何字体，任何设备都不会出现"豆腐块"。
+   字形原点 = 该字形所标记的谱线本身：
+     高音谱号原点在高音 G 线、低音谱号在 F 线、中音谱号在 C 线；
+     符头 / 变音记号的原点在音符所在的谱位。
+   字形横向从原点向右延伸（0..xMax），纵向 y 轴朝上（故 SVG 中取负）。 */
+const GLYPH = {"unitsPerEm":1000,"space":250.0,"glyphs":{"gClef":{"code":"U+E050","d":"M376 415C374 427 376 428 382 434C490 535 572 662 572 815C572 902 548 988 507 1048C492 1070 466 1098 455 1098C441 1098 410 1072 390 1050C316 968 292 843 292 739C292 681 299 616 306 575C308 563 309 561 297 551C153 432 0 289 0 87C0 -87 119 -252 364 -252C387 -252 413 -250 433 -246C444 -244 446 -243 448 -255C460 -322 475 -409 475 -456C475 -604 375 -622 316 -622C262 -622 236 -606 236 -593C236 -586 245 -583 268 -576C299 -567 335 -540 335 -482C335 -427 300 -380 239 -380C172 -380 132 -433 132 -495C132 -560 171 -658 322 -658C389 -658 519 -628 519 -458C519 -401 501 -306 490 -244C488 -232 489 -233 503 -227C604 -187 671 -102 671 11C671 139 577 252 430 252C404 252 404 252 401 270ZM470 943C503 943 530 916 530 861C530 750 435 660 356 591C349 585 345 586 343 599C339 625 337 659 337 691C337 847 409 943 470 943ZM361 262C364 243 364 244 346 238C258 208 201 129 201 44C201 -46 248 -110 316 -133C324 -136 336 -139 343 -139C351 -139 355 -134 355 -128C355 -121 347 -118 340 -115C298 -97 268 -54 268 -8C268 49 307 92 368 109C384 113 386 112 388 101L438 -197C440 -208 439 -208 424 -211C408 -214 388 -216 368 -216C193 -216 80 -119 80 20C80 79 90 158 173 252C233 319 279 356 326 394C336 402 338 401 340 390ZM430 103C428 115 429 118 441 117C522 110 589 42 589 -46C589 -109 551 -160 495 -188C483 -194 481 -194 479 -182Z","xMin":0,"yMin":-658,"xMax":671,"yMax":1098},"cClef":{"code":"U+E05C","d":"M230 482C230 496 223 503 209 503H208C194 503 187 496 187 482V-482C187 -496 194 -503 208 -503H209C223 -503 230 -496 230 -482V-44C230 -36 235 -37 239 -38C265 -45 307 -71 328 -184C331 -200 337 -209 347 -209C358 -209 363 -199 368 -182C381 -138 404 -89 475 -89C540 -89 558 -153 558 -284C558 -415 535 -474 452 -474C438 -474 367 -468 367 -447C367 -442 383 -436 394 -432C414 -425 434 -405 434 -367C434 -323 405 -298 366 -298C323 -298 289 -327 289 -380C289 -443 344 -506 463 -506C627 -506 699 -391 699 -287C699 -149 623 -53 490 -53C461 -53 442 -58 429 -62C419 -65 409 -67 400 -61C386 -52 364 -20 364 0C364 20 386 52 400 61C409 67 419 65 429 62C442 58 461 53 490 53C623 53 699 149 699 287C699 391 627 506 463 506C344 506 289 443 289 380C289 327 323 298 366 298C405 298 434 323 434 367C434 405 414 425 394 432C383 436 367 442 367 447C367 468 438 474 452 474C535 474 558 415 558 284C558 153 540 89 475 89C404 89 381 138 368 182C363 199 358 209 347 209C337 209 331 200 328 184C307 71 265 45 239 38C235 37 230 36 230 44ZM21 503C7 503 0 496 0 482V-482C0 -496 7 -503 21 -503H107C121 -503 128 -496 128 -482V482C128 496 121 503 107 503Z","xMin":0,"yMin":-506,"xMax":699,"yMax":506},"fClef":{"code":"U+E062","d":"M252 262C78 262 0 135 0 39C0 -41 42 -110 123 -110C186 -110 229 -66 229 -4C229 60 182 100 133 100C106 100 96 93 83 93C70 93 67 101 67 111C67 151 127 224 229 224C335 224 381 120 381 -37C381 -316 243 -472 10 -605C1 -610 -5 -615 -5 -623C-5 -629 -1 -635 8 -635C13 -635 19 -633 25 -630C271 -510 531 -332 531 -28C531 146 425 262 252 262ZM629 180C598 180 574 156 574 125C574 94 598 70 629 70C660 70 684 94 684 125C684 156 660 180 629 180ZM630 -71C599 -71 576 -94 576 -125C576 -156 599 -179 630 -179C661 -179 684 -156 684 -125C684 -94 661 -71 630 -71Z","xMin":-5,"yMin":-635,"xMax":684,"yMax":262},"noteheadWhole":{"code":"U+E0A2","d":"M216 125C83 125 0 70 0 2C0 -65 57 -125 206 -125C370 -125 422 -68 422 2C422 73 309 125 216 125ZM111 63C122 98 159 103 190 103C259 103 314 29 314 -31C314 -62 301 -90 268 -98C258 -101 247 -102 237 -102C201 -102 164 -78 143 -50C123 -27 108 7 108 39C108 47 109 55 111 63Z","xMin":0,"yMin":-125,"xMax":422,"yMax":125},"noteheadHalf":{"code":"U+E0A3","d":"M97 -125C262 -125 295 9 295 42C295 93 254 125 196 125C47 125 0 10 0 -42C0 -95 42 -125 97 -125ZM75 -87C54 -87 42 -76 35 -64C32 -58 29 -51 29 -44C29 5 174 84 221 84C240 84 251 75 258 63C261 57 264 51 264 44C264 1 123 -87 75 -87Z","xMin":0,"yMin":-125,"xMax":295,"yMax":125},"noteheadBlack":{"code":"U+E0A4","d":"M97 -125C186 -125 295 -43 295 42C295 93 255 125 198 125C88 125 0 44 0 -42C0 -94 43 -125 97 -125Z","xMin":0,"yMin":-125,"xMax":295,"yMax":125},"accidentalFlat":{"code":"U+E260","d":"M12 -170C15 -174 18 -175 21 -175C24 -175 27 -173 27 -173C57 -156 81 -129 106 -112C195 -50 226 11 226 57C226 114 182 150 136 153C119 153 95 145 81 136C75 131 64 122 59 122C57 122 56 122 54 123C47 126 43 133 43 140C44 162 50 402 50 422C50 433 41 439 31 439C17 439 1 429 0 411C0 411 4 -160 12 -170ZM47 -81C47 -81 44 -21 44 19C44 35 45 47 46 51C53 71 93 100 116 100C145 100 157 67 157 42C157 -12 111 -66 68 -93C64 -95 61 -96 58 -96C49 -96 47 -86 47 -81Z","xMin":0,"yMin":-175,"xMax":226,"yMax":439},"accidentalNatural":{"code":"U+E261","d":"M141 181C139 181 138 180 137 180C137 180 73 157 47 157C41 157 37 158 37 162V329C37 336 31 341 25 341H12C5 341 0 336 0 329V-186C0 -192 3 -195 9 -195L11 -194C12 -194 14 -194 15 -193C29 -187 85 -163 114 -163C124 -163 131 -166 131 -174V-323C131 -330 136 -335 143 -335H156C162 -335 168 -330 168 -323V179C168 184 164 187 160 187C159 187 157 187 156 186ZM37 39C37 53 98 79 122 79C128 79 131 78 131 74V-29C131 -47 74 -70 49 -70C42 -70 37 -68 37 -64Z","xMin":0,"yMin":-335,"xMax":168,"yMax":341},"accidentalSharp":{"code":"U+E262","d":"M237 118C244 121 249 129 249 135V206C249 211 246 214 242 214C240 214 239 214 237 213C237 213 217 205 212 204C205 204 198 209 198 217V339C198 345 192 350 184 350C174 350 168 345 168 339V209C167 199 164 186 155 180C143 173 109 159 92 155C83 155 80 167 80 175V295C80 301 73 306 66 306C56 306 50 301 50 295V160C50 146 44 136 38 133C32 130 12 122 12 122C5 120 0 112 0 106V35C0 29 3 26 9 26L11 27C12 27 27 33 35 37L36 38C44 38 50 28 50 20V-79C50 -90 45 -99 39 -102C33 -104 12 -113 12 -113C5 -115 0 -123 0 -129V-200C0 -206 3 -209 9 -209L11 -208C12 -208 26 -202 35 -199C36 -198 37 -198 38 -198C45 -198 50 -209 50 -214V-337C50 -343 56 -348 63 -348C73 -348 80 -343 80 -337V-198C80 -185 85 -178 90 -176L151 -151C151 -151 152 -151 152 -151L154 -150C163 -150 168 -162 168 -168V-293C168 -299 174 -304 181 -304C192 -304 198 -299 198 -293V-151C198 -143 202 -131 209 -128C216 -125 237 -117 237 -117C244 -114 249 -106 249 -100V-29C249 -24 246 -21 242 -21C240 -21 239 -21 237 -22L211 -32C205 -32 198 -26 198 -14V79C198 86 203 105 211 108ZM168 -45C162 -65 115 -85 92 -85C86 -85 81 -83 80 -80C78 -76 77 -54 77 -30C77 1 78 36 80 44C82 61 128 82 153 82C160 82 166 80 168 76C170 71 172 46 172 19C172 -8 170 -36 168 -45Z","xMin":0,"yMin":-348,"xMax":249,"yMax":350},"flag8thUp":{"code":"U+E240","d":"M238 -790C238 -790 264 -695 264 -617C264 -492 212 -374 149 -274C98 -195 56 -109 40 -13C37 3 29 9 19 9C8 9 0 6 0 -6V-245C66 -257 161 -393 197 -478C212 -512 221 -569 221 -628C221 -673 214 -720 197 -765C195 -771 194 -776 194 -780C194 -796 204 -805 210 -809C216 -813 233 -807 238 -790Z","xMin":0,"yMin":-810.19,"xMax":264,"yMax":9},"flag8thDown":{"code":"U+E241","d":"M240 760C254 718 261 668 261 623C261 564 236 480 221 446C184 362 134 281 0 236V1C0 -9 8 -14 16 -14C25 -14 38 -8 40 8C57 103 131 190 182 269C245 368 306 487 306 612C306 690 286 761 278 793C275 804 269 808 262 808C247 808 230 789 240 760Z","xMin":0,"yMin":-14,"xMax":306,"yMax":808}}};
+
+/* ================= 应用逻辑 ================= */
+const $ = (id) => document.getElementById(id);
+const INK = '#2f2a25';
+const U2SPACE = GLYPH.space;          // SMuFL：1 个线间距 = 250 字体单位
+let   SP = 30;                        // 当前线间距(px)，按谱面纵向范围自适应
+const GSC = () => SP / U2SPACE;       // 字体单位 -> px 的缩放系数
+/** 字形宽度（单位：线间距） */
+const GW = (n) => GLYPH.glyphs[n].xMax / U2SPACE;
+/** 谱位 -> 画布 y。p=0 为第一线、p=8 为第五线，每 +1 上移半格 */
+const yOf = (p) => SP * (6.6 - 0.5 * p);
+
+/* SMuFL engravingDefaults：线宽与加线伸出量（单位＝线间距） */
+const LW = { staff: 0.13, stem: 0.12, ledger: 0.16, ledgerExt: 0.4 };
+
+const CLEF_GLYPH = { treble: 'gClef', bass: 'fClef', alto: 'cClef' };
+const HEAD_GLYPH = { quarter: 'noteheadBlack', eighth: 'noteheadBlack',
+                     half: 'noteheadHalf', whole: 'noteheadWhole' };
+const ACC_GLYPH = { '1': 'accidentalSharp', '-1': 'accidentalFlat', '0': 'accidentalNatural' };
+
+/* ---- 状态 ---- */
+// 音的规范化唯一标识。必须用模板字符串：数字相加会造成 B4 与 A5 同 key 的冲突。
+const nKey = (n) => `${n.letter}|${n.octave}|${n.alter || 0}`;
+
+const DIFFS = {
+  1: { lo: 0,  hi: 4,  alter: false, name: '入门', tip: '只在第一线到第三线，音符都在五线内' },
+  2: { lo: -2, hi: 10, alter: true,  name: '进阶', tip: '全部五线 + 高音区，含升降记号' },
+  3: { lo: -4, hi: 14, alter: true,  name: '挑战', tip: '上下加线全部出现，音域最宽' },
+};
+const ST = { clef: 'treble', diff: 2, mode: 'read', alter: true, dur: 'quarter', guide: false, sound: true };
+const DUR_LABEL = { quarter: '四分音符', half: '二分音符', eighth: '八分音符' };
+let cur = null, locked = false, score = { ok: 0, bad: 0 }, streak = 0, bestStreak = 0, roundNo = 0;
+let drilling = false;           // 是否处于"错题重练"模式
+const wrongBook = [];      // 本轮错题：{letter, octave, alter, clef}
+
+/* ---- 音频：Web Audio 合成，无需外部文件 ---- */
+let AC = null;
+function ac() {
+  if (!AC) { const C = window.AudioContext || window.webkitAudioContext; AC = new C(); }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(f, dur = 0.7, gain = 0.22, when = 0) {
+  if (!ST.sound) return;
+  const a = ac(), t = a.currentTime + when;
+  const o = a.createOscillator(), g = a.createGain(), o2 = a.createOscillator(), g2 = a.createGain();
+  o.type = 'triangle'; o.frequency.value = f;
+  o2.type = 'sine'; o2.frequency.value = f * 2;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(gain, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g2.gain.setValueAtTime(0, t);
+  g2.gain.linearRampToValueAtTime(gain * 0.25, t + 0.02);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.7);
+  o.connect(g).connect(a.destination); o2.connect(g2).connect(a.destination);
+  o.start(t); o.stop(t + dur); o2.start(t); o2.stop(t + dur);
+}
+function playNote(n, dur = 0.7) { tone(THEORY.freq(n), dur); }
+function sfx(ok) {
+  if (!ST.sound) return;
+  if (ok) { tone(660, 0.12, 0.18); tone(880, 0.18, 0.18, 0.09); }
+  else { tone(200, 0.22, 0.16); tone(150, 0.3, 0.14, 0.1); }
+}
+let toastTimer;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+/* ================= 矢量绘制 ================= */
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+/** 绘制一个 SMuFL 字形，使其原点落在 (x,y)。data-glyph 便于校验与调试 */
+function glyph(name, x, y, k = 1) {
+  const g = GLYPH.glyphs[name];
+  const s = GSC() * k;
+  return `<path data-glyph="${name}" d="${g.d}" transform="translate(${x},${y}) scale(${s},${-s})" fill="${INK}"/>`;
+}
+
+/** 谱号：原点即它标记的那条线，直接落在 yOf(off) 上 */
+function clefSvg(clef, x) {
+  return glyph(CLEF_GLYPH[clef], x, yOf(THEORY.CLEFS[clef].off));
+}
+
+/**
+ * 变音记号：置于符头左侧，右缘距符头左缘 0.22 个线间距（常规排版间距）。
+ * @param a 1=升号 -1=降号 0=还原号
+ */
+function accSvg(a, cx, p) {
+  const name = ACC_GLYPH[String(a)];
+  if (!name) return '';
+  const headHalf = GW(HEAD_GLYPH[ST.dur]) / 2 * SP;
+  return glyph(name, cx - headHalf - 0.22 * SP - GW(name) * SP, yOf(p));
+}
+
+/** 符头：以音符的谱位为中心左右居中 */
+function noteHead(cx, p, dur) {
+  const name = HEAD_GLYPH[dur] || 'noteheadBlack';
+  return glyph(name, cx - GW(name) * SP / 2, yOf(p));
+}
+
+/**
+ * 符干（含八分音符符尾）。符干贴符头一侧：向上的符干在符头右缘，向下的在左缘；
+ * 中线以下符干向上，其余向下。
+ */
+function noteStem(cx, p, dur) {
+  if (dur === 'whole') return '';
+  const w = GW(HEAD_GLYPH[dur]) * SP;
+  const up = p < 4;
+  const sx = (up ? cx + w / 2 : cx - w / 2).toFixed(1);
+  const y0 = yOf(p) + (up ? -0.168 : 0.168) * SP;
+  const y1 = y0 + (up ? -3.4 : 3.4) * SP;
+  let s = `<path d="M ${sx},${y0.toFixed(1)} L ${sx},${y1.toFixed(1)}" stroke="${INK}"
+    stroke-width="${(LW.stem * SP).toFixed(2)}" stroke-linecap="butt"/>`;
+  if (dur === 'eighth') s += glyph(up ? 'flag8thUp' : 'flag8thDown', +sx, y1);
+  return s;
+}
+
+/**
+ * 生成可内联进 HTML 的小图标（按钮 / 提示文字用），同样不依赖任何字体。
+ * 字形名以 notehead 开头时自动补上符干。
+ * @param name 字形名
+ * @param px   图标高度（像素）
+ * @param fill 填充色
+ */
+function miniGlyph(name, px, fill = INK) {
+  const g = GLYPH.glyphs[name];
+  const withStem = /^notehead/.test(name) && name !== 'noteheadWhole';
+  const TH = 30, LEN = 750;            // 符干线宽 / 长度（字体单位）
+  const top = withStem ? g.yMax + LEN : g.yMax;
+  const boxH = top - g.yMin;
+  const k = px / boxH;
+  const stem = withStem
+    ? `<path d="M ${g.xMax - TH / 2} ${g.yMin + 20} L ${g.xMax - TH / 2} ${top}"
+         stroke="${fill}" stroke-width="${TH}" fill="none"/>`
+    : '';
+  return `<svg viewBox="${g.xMin} ${-top} ${g.xMax - g.xMin} ${boxH}"
+    width="${(g.xMax * k).toFixed(2)}" height="${px}" aria-hidden="true"
+    preserveAspectRatio="xMinYMid meet"><g transform="scale(1,-1)">
+    <path d="${g.d}" fill="${fill}"/>${stem}</g></svg>`;
+}
+
+/**
+ * 渲染谱面。
+ * 纵向可见范围 = 五线谱范围 ∪ 音符（含变音记号高度）∪ 谱号本体，三者取并集，
+ * 并按此自适应线间距 —— 这样任何音符、任何谱号都不会被裁到画布外。
+ */
+function renderStaff() {
+  const { clef, diff, dur, guide, mode } = ST;
+  const lo = DIFFS[diff].lo, hi = DIFFS[diff].hi;
+  const cur_ = cur;
+  if (!cur_) return '';
+  const p = cur_.p;
+
+  const W = 420, LX = 28, NX = 250;
+
+  /* --- 先算出"需要多高"，据此决定线间距 --- */
+  const clefG = GLYPH.glyphs[CLEF_GLYPH[clef]];
+  const needs = (sp) => {
+    const y = (q) => sp * (6.6 - 0.5 * q);
+    const padN = (DIFFS[diff].alter && ST.alter ? 1.45 : 0.55) * sp;  // 升号最高约 1.4 个线间距
+    const off = THEORY.CLEFS[clef].off;
+    const cTop = y(off) - clefG.yMax / U2SPACE * sp;
+    const cBot = y(off) - clefG.yMin / U2SPACE * sp;
+    const top = Math.min(y(hi + 1) - padN, cTop) - sp / 2;
+    const bot = Math.max(y(lo - 1) + padN, cBot) + sp / 2;
+    return { top, h: bot - top };
+  };
+  const HMAX = 340;                       // 谱面框最大高度（画布单位）
+  const probe = needs(30);
+  SP = probe.h > HMAX ? Math.max(19, 30 * HMAX / probe.h) : 30;
+  const box = needs(SP);
+  const boxTop = box.top.toFixed(1), boxH = box.h.toFixed(1);
+
+  const ny = yOf(p);
+  let g = '';
+
+  // 五线：只有 p=0/2/4/6/8 五个偶数位是"线"，奇数是"间"（不画线）
+  g += `<g stroke="${INK}" stroke-width="${(LW.staff * SP).toFixed(2)}" stroke-linecap="butt">`;
+  for (let q = 8; q >= 0; q -= 2)
+    g += `<path d="M 22,${yOf(q).toFixed(1)} L ${W - 22},${yOf(q).toFixed(1)}"/>`;
+  g += `</g>`;
+
+  // 加线：长度 = 符头宽 + 两侧各 0.4 个线间距
+  const ledHalf = (GW('noteheadBlack') / 2 + LW.ledgerExt) * SP;
+  const led = THEORY.ledgerLines(p);
+  if (led.length) {
+    g += `<g stroke="${INK}" stroke-width="${(LW.ledger * SP).toFixed(2)}" stroke-linecap="butt">`;
+    for (const q of led)
+      g += `<path d="M ${(NX - ledHalf).toFixed(1)},${yOf(q).toFixed(1)} L ${(NX + ledHalf).toFixed(1)},${yOf(q).toFixed(1)}"/>`;
+    g += `</g>`;
+  }
+
+  // 谱号
+  g += clefSvg(clef, LX);
+
+  // 辅助线：每条线对应的音名
+  if (guide) {
+    const names = guideNames(clef);
+    g += `<g font-size="${(SP * 0.38).toFixed(1)}" fill="#b0a69a" font-family="sans-serif">`;
+    for (let q = 0; q <= 8; q += 2)
+      if (names[q])
+        g += `<text x="${W - 26}" y="${(yOf(q) + SP * 0.13).toFixed(1)}" text-anchor="middle">${esc(names[q])}</text>`;
+    g += `</g>`;
+  }
+
+  // 听音模式：待点击位置的热区
+  if (mode === 'listen' && !locked) {
+    for (let q = lo; q <= hi; q++) {
+      const n = THEORY.noteAt(q, clef);
+      const nn = { letter: n.letter, octave: n.octave, alter: cur_.alter };
+      g += `<g class="hit" data-name="${esc(THEORY.name(nn))}" style="cursor:pointer">
+        <rect x="${(NX - 1.3 * SP).toFixed(1)}" y="${(yOf(q) - SP / 2).toFixed(1)}"
+              width="${(2.6 * SP).toFixed(1)}" height="${SP.toFixed(1)}" fill="transparent"/>
+      </g>`;
+    }
+    g += `<text x="${NX}" y="${(box.top + SP * 0.8).toFixed(1)}" text-anchor="middle"
+      font-size="${(SP * 0.4).toFixed(1)}" fill="#c3b9ac" font-family="sans-serif">点我选位置</text>`;
+  }
+
+  // 音符本体：非听音模式直接显示；听音模式答错后揭示
+  if (mode !== 'listen' || (locked && !cur_.isRight)) {
+    if (cur_.alterOn) g += accSvg(cur_.alter, NX, p);
+    g += noteStem(NX, p, dur) + noteHead(NX, p, dur);
+  }
+
+  // 对错标记：圈出该音符的正确位置
+  if (locked) {
+    g += `<circle cx="${NX}" cy="${ny.toFixed(1)}" r="${(1.15 * SP).toFixed(1)}" fill="none"
+      stroke="${cur_.isRight ? '#4a9d6a' : '#d1584f'}" stroke-width="${(SP * 0.1).toFixed(1)}"
+      opacity="${cur_.isRight ? 0.95 : 0.85}"/>`;
+  }
+
+  return `<svg viewBox="0 ${boxTop} ${W} ${boxH}" role="img" aria-label="五线谱">${g}</svg>`;
+}
+
+// 辅助线音名：从下往上每条线/间的音（不含加线）
+function guideNames(clef) {
+  const out = {};
+  for (let q = 0; q <= 8; q++) {
+    const n = THEORY.noteAt(q, clef);
+    out[q] = THEORY.LETTERS[n.letter] + n.octave;
+  }
+  return out;
+}
+
+/* ---- 出题 ---- */
+/**
+ * 难度区间（半格坐标）-> 精确的 diatonic 区间。
+ * 必须取 lo / hi 两点本身的 diatonic，不能按"整个八度"取，
+ * 否则会随机出落在五线谱绘图范围之外的音（音符就会看不见）。
+ */
+function diaRange(clef, lo, hi) {
+  const a = THEORY.noteAt(lo, clef), b = THEORY.noteAt(hi, clef);
+  const da = a.octave * 7 + a.letter, db = b.octave * 7 + b.letter;
+  return [Math.min(da, db), Math.max(da, db)];
+}
+
+function newQuestion() {
+  const d = DIFFS[ST.diff];
+  const clef = ST.clef;
+  const [lowDia, hiDia] = diaRange(clef, d.lo, d.hi);
+  const note = THEORY.randomNote(lowDia, hiDia, d.alter && ST.alter);
+  const alterOn = !!note.alter && ST.alter;
+  cur = { note, p: THEORY.pos(note, clef), alter: alterOn ? note.alter : 0, alterOn, isRight: null, chosen: null };
+  locked = false;
+  render();
+}
+
+function render() {
+  const mode = ST.mode;
+  const titles = {
+    read: '看谱，选出正确的<b>音名</b>',
+    listen: '先听声音，再在谱上<b>点出位置</b>',
+    solfege: '看谱，选出正确的<b>唱名</b>',
+  };
+  $('qTitle').innerHTML = titles[mode] +
+    `<span class="hint">${DIFFS[ST.diff].name} · ${THEORY.CLEFS[ST.clef].name} · ${ST.alter ? '含升降记号' : '无升降记号'}</span>`;
+  $('staffBox').innerHTML = renderStaff();
+  $('playWrap').classList.toggle('hidden', mode !== 'listen');
+  $('nextBtn').classList.toggle('hidden', !locked);
+  $('nextBtn').textContent = '下一题 →';
+
+  const o = $('opts');
+  if (mode === 'listen') {
+    o.classList.add('hidden');
+    bindHits();
+  } else {
+    o.classList.remove('hidden');
+    buildOptions();
+  }
+  // 未作答时清空上一题的反馈，避免旧提示停留在新题上
+  if (locked) showFeedback();
+  else { const fb = $('fb'); fb.className = 'fb'; fb.innerHTML = ''; }
+  updateStats();
+}
+
+function buildOptions() {
+  const box = $('opts'); box.innerHTML = '';
+  const clef = ST.clef, d = DIFFS[ST.diff];
+  const [lowDia, highDia] = diaRange(clef, d.lo, d.hi);
+  let items;
+  if (ST.mode === 'read') {
+    const ds = THEORY.makeDistractors(cur.note, clef, 3, lowDia, highDia);
+    items = THEORY.shuffle([cur.note, ...ds]).map(n => ({
+      key: nKey(n), main: THEORY.name(n), sub: '',
+    }));
+  } else {
+    const list = [];
+    const use = THEORY.shuffle([cur.note, ...THEORY.makeDistractors(cur.note, clef, 3, lowDia, highDia)]);
+    for (const n of use) {
+      const k = nKey(n);
+      if (list.some(x => x.key === k)) continue;
+      list.push({ key: k, main: THEORY.solfege(n), sub: THEORY.name(n) });
+      if (list.length === 4) break;
+    }
+    items = THEORY.shuffle(list);
+  }
+  items.forEach((it) => {
+    const b = document.createElement('button');
+    b.className = 'opt';
+    b.innerHTML = `${esc(it.main)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}`;
+    b.dataset.key = it.key;
+    b.onclick = () => answer(it.key, b);
+    box.appendChild(b);
+  });
+}
+
+function bindHits() {
+  document.querySelectorAll('#staffBox .hit').forEach(h => {
+    h.onclick = () => {
+      if (locked) return;
+      answerByPos(h.dataset.name, h);
+    };
+  });
+}
+
+function answer(key, btn) {
+  if (locked) return;
+  finish(key === nKey(cur.note), btn);
+}
+function answerByPos(nameStr, el) {
+  if (locked) return;
+  finish(nameStr === THEORY.name(cur.note), el);
+}
+
+function finish(right, el) {
+  if (locked) return;
+  locked = true;
+  cur.isRight = right;
+  score[right ? 'ok' : 'bad']++;
+  if (right) { streak++; bestStreak = Math.max(bestStreak, streak); }
+  else {
+    streak = 0;
+    // 记录错题（含谱号与难度，便于针对性重练）
+    if (!cur.keyed) { cur.keyed = 1; wrongBook.push({ ...cur.note, clef: ST.clef }); }
+  }
+  sfx(right);
+
+  const correctKey = nKey(cur.note);
+  document.querySelectorAll('#opts .opt').forEach(b => {
+    b.classList.add('lock');
+    if (b.dataset.key === correctKey) b.classList.add('right');
+    if (b === el && !right) b.classList.add('wrong');
+  });
+  $('staffBox').innerHTML = renderStaff();
+  if (ST.mode === 'listen') bindHits();
+  $('nextBtn').classList.remove('hidden');
+  showFeedback();
+  updateStats();
+}
+
+function showFeedback() {
+  const fb = $('fb');
+  const n = cur.note;
+  const zone = cur.p < 0 ? '下加线区' : cur.p > 8 ? '上加线区' : '五线内';
+  // 记号用真实字形内联，避免依赖特殊字符字体
+  const acc = cur.alterOn
+    ? `${cur.alter > 0 ? '升号' : '降号'} ${miniGlyph(ACC_GLYPH[String(cur.alter)], 15)}`
+    : '自然音（无升降）';
+  fb.className = 'fb show ' + (cur.isRight ? 'good' : 'err');
+  fb.innerHTML = cur.isRight
+    ? `<b>答对啦！🎉</b>　这是 <b>${esc(THEORY.name(n))}</b>（${esc(THEORY.solfege(n))}）<br>
+       <span style="opacity:.8">${acc} · ${zone}</span>`
+    : `<b>再想想～</b>　正确答案是 <b>${esc(THEORY.name(n))}</b>（${esc(THEORY.solfege(n))}）<br>
+       <span style="opacity:.8">${acc}${ST.mode === 'listen' ? ' · 已在谱上圈出' : ''}</span>`;
+}
+
+/* ---- 统计 ---- */
+function updateStats() {
+  $('sOk').textContent = score.ok;
+  $('sBad').textContent = score.bad;
+  const t = score.ok + score.bad;
+  $('sAcc').textContent = t ? Math.round(score.ok / t * 100) + '%' : '—';
+  $('sStreak').textContent = streak;
+}
+function toastBest() {
+  try {
+    const b = Math.max(bestStreak, +(localStorage.getItem('srb_best') || 0));
+    localStorage.setItem('srb_best', b);
+    if (bestStreak >= b && bestStreak >= 5) toast(`🏅 新纪录！连对 ${bestStreak} 题`);
+  } catch (e) {}
+}
+
+/* ---- 一轮结束 ---- */
+const ROUND = 10;
+function checkRound() {
+  if (score.ok + score.bad < ROUND) return;
+  if ($('endCard').classList.contains('hidden') === false) return;
+  roundNo++;
+  const acc = Math.round(score.ok / (score.ok + score.bad) * 100);
+  $('endScore').textContent = acc + '%';
+  $('endTitle').textContent = acc >= 90 ? '太厉害了！' : acc >= 70 ? '进步很大！' : '继续加油！';
+  $('endSub').textContent = `本轮 ${ROUND} 题 · 答对 ${score.ok} 题 · 最高连对 ${bestStreak} 题`;
+
+  // 错题本：给家长/孩子一个明确的复习清单
+  const mb = $('missBox'), fold = $('foldBtn');
+  const uniq = [], seen = new Set();
+  for (const w of wrongBook) {
+    const k = `${w.letter}|${w.octave}|${w.alter}|${w.clef}`;
+    if (seen.has(k)) continue;
+    seen.add(k); uniq.push(w);
+  }
+  if (uniq.length) {
+    mb.innerHTML = '<b>本轮错题（' + uniq.length + ' 个，建议逐个重练）</b><br>' +
+      uniq.map(w => {
+        const nn = { letter: w.letter, octave: w.octave, alter: w.alter };
+        const mark = w.alter ? miniGlyph(ACC_GLYPH[String(w.alter)], 14) : '';
+        return `· <b>${esc(THEORY.name(nn))}</b>${mark}（${esc(THEORY.solfege(nn))}）@ ${esc(THEORY.CLEFS[w.clef].name)}`;
+      }).join('<br>');
+    fold.classList.remove('hidden');
+    fold.textContent = '查看错题 ▾';
+    mb.classList.add('hidden');
+  } else {
+    fold.classList.add('hidden');
+    mb.classList.add('hidden');
+  }
+
+  $('quizCard').classList.add('hidden');
+  $('endCard').classList.remove('hidden');
+  toastBest();
+  if (acc === 100) { sfx(true); setTimeout(() => sfx(true), 200); }
+}
+
+/* ---- 错题重练：只出做错过的音 ---- */
+function drillWrong() {
+  const pool = wrongBook.filter(w => !w.done);
+  const src = pool.length ? pool : wrongBook;
+  if (!src.length) {
+    toast('本轮没有错题，太棒了！');
+    drilling = false;
+    resetRound();
+    return;
+  }
+  for (const w of src) w.done = false;
+  const w = src[Math.floor(Math.random() * src.length)];
+  w.done = true;
+  drilling = true;
+  ST.clef = w.clef;
+  syncChips();
+  $('endCard').classList.add('hidden');
+  $('quizCard').classList.remove('hidden');
+  locked = false;
+  // ST.alter 关闭时不带升降，保持题干与判题一致
+  const alter = ST.alter ? (w.alter || 0) : 0;
+  const note = { letter: w.letter, octave: w.octave, alter };
+  cur = { note, p: THEORY.pos(note, ST.clef), alter, alterOn: !!alter,
+          isRight: null, chosen: null, keyed: 1 };
+  render();
+}
+
+/* ---- 设置交互 ---- */
+function bindChips(attr, key, after) {
+  document.querySelectorAll(`[data-${attr}]`).forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll(`[data-${attr}]`).forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      ST[key] = isNaN(+b.dataset[attr]) ? b.dataset[attr] : +b.dataset[attr];
+      after && after();
+    };
+  });
+}
+function syncChips() {
+  const set = (attr, val) => document.querySelectorAll(`[data-${attr}]`).forEach(b =>
+    b.classList.toggle('on', b.dataset[attr] === String(val)));
+  set('clef', ST.clef); set('diff', ST.diff); set('mode', ST.mode);
+  const t = {
+    cAlter: [ST.alter, '升降记号'], cGuide: [ST.guide, '辅助线'], cSnd: [ST.sound, '音效'],
+  };
+  for (const id in t) $(id).classList.toggle('on', t[id][0]);
+  $('cDur').classList.add('on');
+  $('cDur').innerHTML = miniGlyph(HEAD_GLYPH[ST.dur], 17) + DUR_LABEL[ST.dur];
+}
+
+bindChips('clef', 'clef', newQuestion);
+bindChips('diff', 'diff', newQuestion);
+bindChips('mode', 'mode', newQuestion);
+$('cAlter').onclick = () => { ST.alter = !ST.alter; syncChips(); newQuestion(); };
+$('cDur').onclick = () => {
+  const seq = ['quarter', 'half', 'eighth'];
+  ST.dur = seq[(seq.indexOf(ST.dur) + 1) % 3]; syncChips(); render();
+};
+$('cGuide').onclick = () => { ST.guide = !ST.guide; syncChips(); render(); };
+$('cSnd').onclick = () => { ST.sound = !ST.sound; syncChips(); if (ST.sound) playNote(cur.note); };
+$('playBtn').onclick = () => playNote(cur.note, 0.9);
+$('replayBtn').onclick = () => playNote(cur.note, 0.9);
+$('nextBtn').onclick = () => {
+  if (drilling) { drillWrong(); return; }
+  checkRound();
+  if ($('endCard').classList.contains('hidden') === false) return;
+  newQuestion();
+};
+$('restartBtn').onclick = () => { drilling = false; resetRound(); };
+$('drillBtn').onclick = () => drillWrong();
+$('contBtn').onclick = () => {
+  drilling = false;
+  $('endCard').classList.add('hidden'); $('quizCard').classList.remove('hidden');
+  streak = 0; newQuestion();
+};
+$('foldBtn').onclick = () => {
+  const b = $('missBox'); b.classList.toggle('hidden');
+  $('foldBtn').textContent = b.classList.contains('hidden') ? '查看错题 ▾' : '收起错题 ▴';
+};
+
+function resetRound() {
+  score = { ok: 0, bad: 0 }; streak = 0; wrongBook.length = 0;
+  $('endCard').classList.add('hidden'); $('quizCard').classList.remove('hidden');
+  newQuestion();
+}
+
+/* ---- 键盘 ---- */
+document.addEventListener('keydown', (e) => {
+  if (ST.mode === 'listen') { if (e.key === ' ' && locked) $('nextBtn').click(); return; }
+  const bs = document.querySelectorAll('#opts .opt');
+  if (['1', '2', '3', '4'].includes(e.key)) {
+    const b = bs[+e.key - 1]; if (b && !b.classList.contains('lock')) b.click();
+  }
+  if (e.key === ' ' && locked) $('nextBtn').click();
+});
+
+/* ---- 启动 ---- */
+// 谱号按钮上用真实字形做预览（同样不依赖字体）
+document.querySelectorAll('.clefIcon').forEach(el => {
+  el.innerHTML = miniGlyph(CLEF_GLYPH[el.dataset.icon], 22, INK);
+});
+syncChips();
+newQuestion();
+render();
+// 首次交互解锁音频（浏览器策略）
+document.addEventListener('pointerdown', () => ac(), { once: true });
+</script>
+<!-- ===== PWA Service Worker 注册 ===== -->
+<script>
+(function () {
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function () {});
+    });
+  }
+})();
+</script>
+<!-- ===== /PWA Service Worker 注册 ===== -->
+
+</body>
+</html>
